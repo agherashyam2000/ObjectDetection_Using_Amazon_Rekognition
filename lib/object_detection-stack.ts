@@ -9,9 +9,14 @@ import { CfnOutput } from "@aws-cdk/core";
 import { Duration } from '@aws-cdk/core';
 import apigw = require('@aws-cdk/aws-apigateway');
 import { AuthorizationType, PassthroughBehavior } from '@aws-cdk/aws-apigateway';
+import s3deploy = require('@aws-cdk/aws-s3-deployment');
+import { HttpMethods } from '@aws-cdk/aws-s3';
+import sqs = require('@aws-cdk/aws-sqs');
+import s3n = require('@aws-cdk/aws-s3-notifications');
 
 const imageBucketName = "cdk-objdetect-imagebucket"
 const resizedBucketName = imageBucketName + "-resized"
+const websiteBucketName = "cdk-objectdetect-publicbucket"
 
 export class ObjectDetectionStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -25,6 +30,12 @@ export class ObjectDetectionStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, 'imageBucket', { value: imageBucket.bucketName });
     const imageBucketArn = imageBucket.bucketArn;
+    imageBucket.addCorsRule({
+      allowedMethods: [HttpMethods.GET, HttpMethods.PUT],
+      allowedOrigins: ["*"],
+      allowedHeaders: ["*"],
+      maxAge: 3000
+    });
 
     // =====================================================================================
     // Thumbnail Bucket
@@ -34,6 +45,45 @@ export class ObjectDetectionStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, 'resizedBucket', { value: resizedBucket.bucketName });
     const resizedBucketArn = resizedBucket.bucketArn;
+    resizedBucket.addCorsRule({
+      allowedMethods: [HttpMethods.GET, HttpMethods.PUT],
+      allowedOrigins: ["*"],
+      allowedHeaders: ["*"],
+      maxAge: 3000
+    });
+
+    // // =====================================================================================
+    // // Construct to create our Amazon S3 Bucket to host our website
+    // // =====================================================================================
+    // const webBucket = new s3.Bucket(this, websiteBucketName, {
+    //   websiteIndexDocument: 'index.html',
+    //   websiteErrorDocument: 'index.html',
+    //   publicReadAccess: true,
+    //   removalPolicy: cdk.RemovalPolicy.DESTROY
+    // });
+
+    // webBucket.addToResourcePolicy(new iam.PolicyStatement({
+    //   actions: ['s3:GetObject'],
+    //   resources: [webBucket.arnForObjects('*')],
+    //   principals: [new iam.AnyPrincipal()],
+    //   conditions: {
+    //     'IpAddress': {
+    //       'aws:SourceIp': [
+    //         '*.*.*.*/*' // Please change it to your IP address or from your allowed list
+    //       ]
+    //     }
+    //   }
+
+    // }))
+    // new cdk.CfnOutput(this, 'bucketURL', { value: webBucket.bucketWebsiteDomainName });
+
+    // // =====================================================================================
+    // // Deploy site contents to S3 Bucket
+    // // =====================================================================================
+    // new s3deploy.BucketDeployment(this, 'DeployWebsite', {
+    //   sources: [s3deploy.Source.asset('./public')],
+    //   destinationBucket: webBucket
+    // });
 
     // =====================================================================================
     // Amazon DynamoDB table for storing image labels
@@ -289,12 +339,35 @@ export class ObjectDetectionStack extends cdk.Stack {
       ]
     });
 
+//     // =====================================================================================
+//     // Building SQS queue and DeadLetter Queue
+//     // =====================================================================================
+//     const dlQueue = new sqs.Queue(this, 'ImageDLQueue', {
+//       queueName: 'ImageDLQueue'
+//     })
 
+//     const queue = new sqs.Queue(this, 'ImageQueue', {
+//       queueName: 'ImageQueue',
+//       visibilityTimeout: cdk.Duration.seconds(30),
+//       receiveMessageWaitTime: cdk.Duration.seconds(20),
+//       deadLetterQueue: {
+//         maxReceiveCount: 2,
+//         queue: dlQueue
+//       }
+//     });
 
+//     // =====================================================================================
+//     // Building S3 Bucket Create Notification to SQS
+//     // =====================================================================================
+//     imageBucket.addObjectCreatedNotification(new s3n.SqsDestination(queue), { prefix: 'private/' })
+
+//     // =====================================================================================
+//     // Lambda(Rekognition) to consume messages from SQS
+//     // =====================================================================================
+//     rekFn.addEventSource(new event_sources.SqsEventSource(queue));
+//   }
+// }
   }
 }
-
-
-
 
 
